@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Machine Learning / Models
+*.pth
+*.pt
+*.onnx
+*.h5
+models/
+checkpoints/
+*.bin
+*.safetensors
+
+# Datasets (too large for git)
+datasets/external/
+datasets/*.parquet
+datasets/*.zip
+datasets/*.csv
+
+# Logs
+*.log
+logs/
+wandb/
+runs/
+
+# Hydra outputs
+outputs/
+.multirun/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Secrets
+*.key
+*.json
+!package.json
+kaggle.json
+
+# Training artifacts
+oof_df*.csv
+result_df*.csv
+submission*.csv
+
+# Cache
+.cache/
+.huggingface/
