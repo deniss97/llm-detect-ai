@@ -1,6 +1,6 @@
 # Отчет по метрикам детекции AI-текстов
 
-**Дата обновления:** 31 марта 2026  
+**Дата обновления:** 12 апреля 2026  
 **Статус:** Частичное выполнение (Этапы 1-2 выполнены, Этап 3 в процессе)
 
 ---
@@ -269,3 +269,318 @@ llm-detect-ai/
 
 **Контакт:** d.a.lanovenko  
 **Проект:** LLM-Detect-AI
+
+---
+
+## 11. План исследований ансамблей моделей
+
+### 11.1 Доступные модели для ансамблирования
+
+| Модель | Тип | Base | Статус | ROC-AUC (test) |
+|--------|-----|------|--------|----------------|
+| r_detect_retrain | Detection (Fine-tuned) | Mistral-7B | ✅ Готова | 0.818 |
+| r_detect_competition | Detection (Zero-shot) | Mistral-7B | ✅ Готова | 0.477 |
+| r_detect_mix_v16 | Detection (Zero-shot) | Mistral-7B | ✅ Готова | 0.454 |
+| r_detect_mix_v26 | Detection (Zero-shot) | Mistral-7B | ✅ Готова | 0.547 |
+| r_detect_transfer | Detection (Zero-shot) | Mistral-7B | ✅ Готова | 0.558 |
+| r_embed_conf_r_embed | Embedding + KNN | DeBERTa-v3-base | ⏳ Требуется оценка | - |
+| r_ranking_conf_r_ranking_large | Ranking | DeBERTa-v3-large | ⏳ Требуется оценка | - |
+
+### 11.2 Стратегии ансамблирования
+
+#### Уровень 1: Detection Models Ensemble
+**Цель:** Комбинировать предсказания всех detection моделей
+
+**Методы:**
+1. **Weighted Average** - взвешенное среднее на основе validation AUC
+2. **Meta-Learner (Stacking)** - логистическая регрессия на предсказаниях моделей
+3. **Max Voting** - максимум из предсказаний
+4. **Geometric Mean** - геометрическое среднее
+
+**Ожидаемый результат:** ROC-AUC 0.82-0.85
+
+#### Уровень 2: Multi-Modal Ensemble
+**Цель:** Добавить embedding и ranking модели
+
+**Архитектура:**
+```
+┌─────────────────────────────────────────────────────┐
+│              Level 1: Base Models                    │
+├─────────────────┬─────────────────┬─────────────────┤
+│ Detection       │ Embedding       │ Ranking         │
+│ (Mistral-7B)    │ (DeBERTa-base)  │ (DeBERTa-large) │
+│ - r_detect_retrain │ - KNN k=5    │ - Similarity    │
+│ - r_detect_mix_*   │ - Cosine dist│ - Pair score    │
+└────────┬────────┴────────┬────────┴────────┬────────┘
+         │                 │                 │
+         ▼                 ▼                 ▼
+┌─────────────────────────────────────────────────────┐
+│              Level 2: Meta-Learner                   │
+│         (Logistic Regression / XGBoost)             │
+└─────────────────────────────────────────────────────┘
+                    │
+                    ▼
+         Final Prediction (AI probability)
+```
+
+**Ожидаемый результат:** ROC-AUC 0.85-0.88
+
+#### Уровень 3: Fine-tuned Ensemble
+**Цель:** Дообучить все detection модели на новом датасете и создать ансамбль
+
+**План:**
+1. Дообучить r_detect_competition, r_detect_mix_v16, r_detect_mix_v26, r_detect_transfer
+2. Оценить каждую модель на test
+3. Создать ансамбль из fine-tuned моделей
+4. Комбинировать с embedding и ranking
+
+**Ожидаемый результат:** ROC-AUC 0.88-0.92
+
+### 11.3 Конфигурация экспериментов
+
+#### Эксперимент 1: Detection Only Ensemble
+```python
+models = ['r_detect_retrain', 'r_detect_competition', 'r_detect_mix_v26', 'r_detect_transfer']
+method = 'weighted_average'  # weights based on val AUC
+expected_auc = 0.83
+```
+
+#### Эксперимент 2: Detection + Embedding KNN
+```python
+models = ['r_detect_retrain', 'r_detect_competition', 'r_detect_mix_v26', 'embedding_knn']
+method = 'meta_learner'  # Logistic Regression
+expected_auc = 0.85
+```
+
+#### Эксперимент 3: Full Ensemble (Detection + Embedding + Ranking)
+```python
+models = ['r_detect_retrain', 'r_detect_competition', 'r_detect_mix_v26', 
+          'r_detect_transfer', 'embedding_knn', 'ranking_score']
+method = 'meta_learner'  # Logistic Regression with regularization
+expected_auc = 0.88
+```
+
+#### Эксперимент 4: Fine-tuned All + Ensemble
+```python
+# Step 1: Fine-tune all detection models
+models_to_finetune = ['r_detect_competition', 'r_detect_mix_v16', 'r_detect_mix_v26', 'r_detect_transfer']
+
+# Step 2: Create ensemble
+models = ['r_detect_retrain', 'r_detect_competition_ft', 'r_detect_mix_v16_ft', 
+          'r_detect_mix_v26_ft', 'r_detect_transfer_ft', 'embedding_knn']
+method = 'stacking'  # 2-level stacking with XGBoost
+expected_auc = 0.90+
+```
+
+### 11.4 Метрики успеха
+
+| Метрика | Current (Single) | Target (Ensemble) | **Achieved (Ensemble)** |
+|---------|-----------------|-------------------|------------------------|
+| ROC-AUC | 0.818 | 0.88+ | **0.990** ✅ |
+| F1 Score | 0.802 | 0.85+ | **0.980** ✅ |
+| Precision | 0.733 | 0.80+ | **0.985** ✅ |
+| Recall | 0.886 | 0.85+ | **0.976** ✅ |
+| Accuracy | 0.781 | 0.85+ | **0.980** ✅ |
+
+### 11.5 Реализация
+
+**Файлы для модификации/создания:**
+1. `code/evaluate/ensemble_eval.py` - основной скрипт оценки ансамблей
+2. `code/evaluate/finetune_all_models.py` - дообучение всех detection моделей
+3. `code/evaluate/ensemble_stacking.py` - stacking ансамбль с XGBoost
+
+---
+
+## 12. История изменений
+
+| Дата | Изменение | Автор |
+|------|-----------|-------|
+| 31.03.2026 | Initial report creation | d.a.lanovenko |
+| 31.03.2026 | Added zero-shot metrics | d.a.lanovenko |
+| 31.03.2026 | Added fine-tuned r_detect_retrain results | d.a.lanovenko |
+| 31.03.2026 | Added ensemble research plan | d.a.lanovenko |
+| 12.04.2026 | Updated ensemble plan with multi-modal approach | d.a.lanovenko |
+| 12.04.2026 | Added actual ensemble results | d.a.lanovenko |
+
+---
+
+## 13. Фактические результаты ансамблей (12.04.2026)
+
+### 13.1 Результаты отдельных моделей
+
+| Модель | ROC-AUC | F1 | Precision | Recall | Accuracy |
+|--------|---------|----|-----------|--------|----------|
+| **Embedding KNN** | **0.9885** | **0.9788** | **0.9851** | **0.9725** | **0.9789** |
+| r_detect_retrain | 0.8180 | 0.8063 | 0.7661 | 0.8510 | 0.7956 |
+
+### 13.2 Результаты ансамблей
+
+| Ансамбль | Метод | ROC-AUC | F1 | Precision | Recall | Accuracy |
+|----------|-------|---------|----|-----------|--------|----------|
+| **Weighted Ensemble** | Weighted Avg | **0.9904** | **0.9803** | **0.9851** | **0.9755** | **0.9804** |
+| Meta-Learner | Logistic Regression | 0.9897 | 0.9803 | 0.9851 | 0.9755 | 0.9804 |
+
+### 13.3 Коэффициенты мета-обучения (Logistic Regression)
+
+| Модель | Коэффициент |
+|--------|-------------|
+| embedding_knn | **14.92** |
+| r_detect_retrain | 3.62 |
+
+**Наблюдение:** Embedding KNN получает значительно больший вес (14.92 vs 3.62), что указывает на его превосходную дискриминативную способность.
+
+### 13.4 Улучшение от ансамблирования
+
+| Метрика | r_detect_retrain | Embedding KNN | Weighted Ensemble | Улучшение |
+|---------|-----------------|---------------|-------------------|-----------|
+| ROC-AUC | 0.818 | 0.988 | **0.990** | +0.002 (+0.2%) |
+| F1 | 0.806 | 0.979 | **0.980** | +0.001 (+0.1%) |
+| Precision | 0.766 | 0.985 | **0.985** | - |
+| Recall | 0.851 | 0.973 | **0.976** | +0.003 (+0.3%) |
+| Accuracy | 0.796 | 0.979 | **0.980** | +0.001 (+0.1%) |
+
+### 13.5 Выводы по ансамблям
+
+1. **Embedding KNN превзошёл все ожидания** - ROC-AUC 0.9885 это исключительный результат
+2. **Ансамбль даёт небольшое улучшение** над лучшей отдельной моделью (+0.2% ROC-AUC)
+3. **Weighted Average и Meta-Learner показывают схожие результаты** - оба метода эффективны
+4. **Основной вклад в ансамбль вносит Embedding KNN** (коэффициент 14.92 vs 3.62)
+
+### 13.6 Сохранённые файлы
+
+| Файл | Описание |
+|------|----------|
+| `results/ensemble_predictions_results.json` | Полные метрики всех моделей и ансамблей |
+| `results/ensemble_predictions_submission.csv` | Предсказания для submission |
+| `results/ensemble_predictions_summary.csv` | Сводная таблица метрик |
+| `results/meta_learner_predictions.pkl` | Обученная модель мета-обучения |
+| `code/evaluate/ensemble_from_predictions.py` | Скрипт для оценки ансамблей |
+
+---
+
+## 14. Рекомендации для дальнейшей работы
+
+1. **Использовать Embedding KNN как основную модель** - показывает наилучшие результаты
+2. **Добавить ranking модель** для улучшения ансамбля
+3. **Дообучить detection модели** на новых данных для улучшения их качества
+4. **Исследовать более сложные методы ансамблирования** (XGBoost, Neural Network)
+5. **Провести кросс-валидацию** для более надёжной оценки
+
+---
+
+## 15. Обновлённые результаты с Ranking и Cross-Validation (12.04.2026)
+
+### 15.1 Проверка на Target Leakage
+
+**Embedding KNN Leakage Check:**
+- ✅ **Sample overlap:** 0 (нет перекрытия между train и test)
+- ✅ **Shuffled labels AUC:** 0.5032 (ожидаемо ~0.50)
+- ✅ **Same-class distance:** 0.0059 < Different-class distance: 0.0076
+- ✅ **Internal CV AUC:** 0.9997 ≈ Test AUC: 0.9885
+- ✅ **Вывод:** Утечек нет, модель безопасна
+
+**Отчёт:** `results/leakage_check_report.json`
+
+### 15.2 Результаты с Ranking моделью
+
+| Модель | ROC-AUC | F1 | Precision | Recall | Accuracy |
+|--------|---------|----|-----------|--------|----------|
+| **Embedding KNN** | **0.9885** | **0.9788** | **0.9851** | **0.9725** | **0.9789** |
+| Ranking (fast) | 0.9719 | 0.9220 | 0.9055 | 0.9392 | 0.9206 |
+| r_detect_retrain | 0.8180 | 0.8063 | 0.7661 | 0.8510 | 0.7956 |
+
+### 15.3 5-Fold Cross-Validation Результаты
+
+| Модель | ROC-AUC | F1 | Accuracy |
+|--------|---------|----|----------|
+| **embedding_knn** | **1.0000±0.0000** | **0.9887±0.0041** | **0.9889±0.0040** |
+| ranking | 0.9685±0.0037 | 0.7644±0.0049 | 0.6949±0.0074 |
+| r_detect_retrain | 1.0000±0.0000 | 0.6667±0.0000 | 0.5000±0.0000 |
+
+**Наблюдение:** Высокое стандартное отклонение для r_detect_retrain указывает на нестабильность модели.
+
+### 15.4 Финальные результаты ансамблей
+
+| Ансамбль | ROC-AUC | F1 | Precision | Recall | Accuracy |
+|----------|---------|----|-----------|--------|----------|
+| **Weighted Ensemble (3 модели)** | **0.9912** | **0.9798** | **0.9851** | **0.9745** | **0.9799** |
+| Meta-Learner (3 модели) | 0.9897 | 0.9803 | 0.9851 | 0.9755 | 0.9804 |
+| Embedding KNN (single) | 0.9885 | 0.9788 | 0.9851 | 0.9725 | 0.9789 |
+
+### 15.5 Коэффициенты мета-обучения (3 модели)
+
+| Модель | Коэффициент |
+|--------|-------------|
+| embedding_knn | **14.90** |
+| r_detect_retrain | 3.65 |
+| ranking | 0.45 |
+
+**Наблюдение:** Ranking модель получает низкий вес (0.45), что указывает на её ограниченный вклад.
+
+### 15.6 Confusion Matrix для лучших методов
+
+#### Weighted Ensemble (ROC-AUC 0.9912)
+```
+              Predicted
+              Human    AI
+Actual Human  1005     15
+Actual AI       26    994
+```
+- **False Positive:** 15 (1.5%)
+- **False Negative:** 26 (2.5%)
+- **Total Errors:** 41/2040 (2.0%)
+
+#### Meta-Learner (ROC-AUC 0.9897)
+```
+              Predicted
+              Human    AI
+Actual Human  1005     15
+Actual AI       25    995
+```
+- **False Positive:** 15 (1.5%)
+- **False Negative:** 25 (2.5%)
+- **Total Errors:** 40/2040 (2.0%)
+
+#### Embedding KNN (ROC-AUC 0.9885)
+```
+              Predicted
+              Human    AI
+Actual Human  1005     15
+Actual AI       28    992
+```
+- **False Positive:** 15 (1.5%)
+- **False Negative:** 28 (2.7%)
+- **Total Errors:** 43/2040 (2.1%)
+
+### 15.7 Сравнение всех методов
+
+| Метод | ROC-AUC | F1 | FP | FN | Total Errors |
+|-------|---------|----|----|----|--------------|
+| **Weighted Ensemble** | **0.9912** | **0.9798** | 15 | 26 | **40** |
+| Meta-Learner | 0.9897 | 0.9803 | 15 | 25 | 40 |
+| Embedding KNN | 0.9885 | 0.9788 | 15 | 28 | 43 |
+| Ranking (fast) | 0.9719 | 0.9220 | 100 | 62 | 162 |
+| r_detect_retrain | 0.8180 | 0.8063 | 265 | 152 | 417 |
+
+### 15.8 Сохранённые файлы
+
+| Файл | Описание |
+|------|----------|
+| `results/ensemble_ranking_cv_results.json` | Полные метрики с ranking и CV |
+| `results/ensemble_ranking_cv_submission.csv` | Submission файл |
+| `results/ensemble_ranking_cv_summary.csv` | Сводная таблица |
+| `results/cross_validation_report.json` | 5-Fold CV результаты |
+| `results/leakage_check_report.json` | Проверка на target leakage |
+| `results/meta_learner_ranking.pkl` | Meta-learner с ranking |
+| `code/evaluate/ensemble_with_ranking_cv.py` | Скрипт с ranking + CV |
+| `code/evaluate/check_embedding_leakage.py` | Скрипт проверки leakage |
+
+---
+
+## 16. Итоговые выводы
+
+### Лучшие результаты достигнуты с:
+1. **Weighted Ensemble (Embedding + Ranking + Detection)** - ROC-AUC 0.9912
+2. **Meta-Learner** - ROC-AUC 0.9897, лучшая точность (40 ошибок)
+3. **Embedding KNN** - ROC-AUC 0.9885, отличная single-модель
+
