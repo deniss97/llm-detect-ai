@@ -6,6 +6,7 @@ Evaluate r_detect model trained on final_dataset
 import os
 import sys
 import pandas as pd
+import numpy as np
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, classification_report
@@ -126,8 +127,8 @@ def evaluate_model(model_path, test_csv_path, device='cuda'):
             all_predictions.extend(predictions)
             all_labels.extend(labels.cpu().numpy().tolist())
     
-    # Calculate metrics
-    all_predictions = torch.sigmoid(torch.tensor(all_predictions)).numpy()
+    # Calculate metrics (predictions already have sigmoid applied)
+    all_predictions = np.array(all_predictions)
     
     auc = roc_auc_score(all_labels, all_predictions)
     acc = accuracy_score(all_labels, (all_predictions > 0.5).astype(int))

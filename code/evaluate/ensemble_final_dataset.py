@@ -85,20 +85,8 @@ def load_data():
 
 
 def load_detection_predictions(test_df, model_name, model_config):
-    """Load pre-computed predictions from CSV or compute new ones."""
-    print(f"  Loading {model_name} predictions...")
-    
-    # Try to load existing predictions
-    test_file = os.path.join(MODELS_DIR, 'r_detect_final_dataset/best/final_test_results.csv')
-    if os.path.exists(test_file):
-        df = pd.read_csv(test_file)
-        if 'predictions' in df.columns:
-            print(f"    Loaded {len(df)} predictions from {test_file}")
-            if len(df) == len(test_df):
-                return df['predictions'].values
-    
-    # Compute predictions if not found
-    print(f"    Computing predictions for {model_name}...")
+    """Compute predictions using detection model (no caching to avoid target leak)."""
+    print(f"  Computing predictions for {model_name}...")
     return compute_detection_predictions(test_df, model_config)
 
 
