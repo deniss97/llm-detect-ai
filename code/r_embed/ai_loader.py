@@ -106,9 +106,33 @@ class AiCollatorTrain(DataCollatorWithPadding):
 
     def __call__(self, features):
         bs = len(features)
-        selected_prompt_id = self.rng.choice(self.prompt_ids)
-        selected_example_ids_pos = self.rng.sample(self.prompt2ids_pos[selected_prompt_id], k=bs//2)
-        selected_example_ids_neg = self.rng.sample(self.prompt2ids_neg[selected_prompt_id], k=bs//2)
+        # Find a prompt_id that has enough examples for both classes
+        max_attempts = 50
+        for _ in range(max_attempts):
+            selected_prompt_id = self.rng.choice(self.prompt_ids)
+            pos_ids = self.prompt2ids_pos.get(selected_prompt_id, [])
+            neg_ids = self.prompt2ids_neg.get(selected_prompt_id, [])
+            
+            # Check if we have enough examples
+            if len(pos_ids) >= bs//2 and len(neg_ids) >= bs//2:
+                break
+        else:
+            # Fallback: use any prompt_id with at least 1 example of each class
+            for pid in self.prompt_ids:
+                pos_ids = self.prompt2ids_pos.get(pid, [])
+                neg_ids = self.prompt2ids_neg.get(pid, [])
+                if len(pos_ids) >= 1 and len(neg_ids) >= 1:
+                    selected_prompt_id = pid
+                    break
+        
+        # Sample with available examples
+        pos_ids = self.prompt2ids_pos.get(selected_prompt_id, [])
+        neg_ids = self.prompt2ids_neg.get(selected_prompt_id, [])
+        k_pos = min(bs//2, len(pos_ids))
+        k_neg = min(bs//2, len(neg_ids))
+        
+        selected_example_ids_pos = self.rng.sample(pos_ids, k=k_pos)
+        selected_example_ids_neg = self.rng.sample(neg_ids, k=k_neg)
         selected_example_ids = selected_example_ids_pos + selected_example_ids_neg
         features = self.process_features(selected_example_ids)
 

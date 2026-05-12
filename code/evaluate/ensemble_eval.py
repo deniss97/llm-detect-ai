@@ -31,8 +31,13 @@ DATA_DIR = os.path.join(BASE_DIR, "datasets")
 MODELS_DIR = "/qwarium/home/d.a.lanovenko/models"
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
 
-# Model configs
+# Model configs - Updated with r_detect_retrain (best performing model)
 DETECT_MODELS = {
+    'r_detect_retrain': {
+        'path': os.path.join(MODELS_DIR, 'r_detect_retrain/best'),
+        'base': 'mistralai/Mistral-7B-v0.1',
+        'weight': 2.0,  # Higher weight due to best performance
+    },
     'r_detect_competition': {
         'path': os.path.join(MODELS_DIR, 'r_detect_competition/last'),
         'base': 'mistralai/Mistral-7B-v0.1',

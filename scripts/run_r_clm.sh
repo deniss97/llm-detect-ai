@@ -15,8 +15,8 @@ export HF_DATASETS_CACHE=/tmp/hf_datasets_cache
 CONFIG_NAME=${1:-conf_r_clm}
 
 # Run training
-python3 ./code/train_r_clm.py \
+python3 ./code/train_r_clm_from_scratch.py \
     --config-name "$CONFIG_NAME" \
     use_wandb=false \
     hydra.run.dir=/tmp/hydra_r_clm/%Y-%m-%d/%H-%M-%S \
-    2>&1 | tee /qwarium/home/d.a.lanovenko/llm-detect-ai/logs/train_r_clm_${CONFIG_NAME}.log
+    2>&1 | tee /tmp/train_r_clm_${CONFIG_NAME}.log

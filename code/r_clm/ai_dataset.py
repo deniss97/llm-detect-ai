@@ -26,13 +26,24 @@ def get_tokenizer(cfg):
 
 
 def get_instruction(inputs):
+    # Support for PERSUADE 2.0 dataset (nbroad/persaude-corpus-2)
+    # Available columns: essay_id_comp, competition_set, full_text, discourse_type, etc.
+    # Missing columns are set to defaults
+    
+    prompt_name = inputs.get('prompt_name', inputs.get('competition_set', 'Unknown'))
+    task = inputs.get('task', inputs.get('discourse_type', 'Writing'))
+    score = inputs.get('holistic_essay_score', inputs.get('score', -1))
+    grade_level = inputs.get('grade_level', inputs.get('grade', -1))
+    ell_status = inputs.get('ell_status', 'Unknown')
+    disability_status = inputs.get('student_disability_status', 'Unknown')
+    
     ret = f"""
-Prompt: {inputs['prompt_name']}
-Task: {inputs['task']}
-Score: {inputs['holistic_essay_score']}
-Student Grade Level: {inputs['grade_level']}
-English Language Learner: {inputs['ell_status']}
-Disability Status: {inputs['student_disability_status']}
+Prompt: {prompt_name}
+Task: {task}
+Score: {score}
+Student Grade Level: {grade_level}
+English Language Learner: {ell_status}
+Disability Status: {disability_status}
     """.strip()
     return ret
 
@@ -88,10 +99,36 @@ class AiDataset:
         return to_return
 
     def preprocess_function(self, persuade_df):
-        persuade_df["student_disability_status"] = persuade_df["student_disability_status"].fillna("Unknown")
-        persuade_df["ell_status"] = persuade_df["ell_status"].fillna("Unknown")
-        persuade_df["grade_level"] = persuade_df["grade_level"].fillna(-1)
-        persuade_df["holistic_essay_score"] = persuade_df["holistic_essay_score"].fillna(-1)
+        # Handle different dataset formats
+        # PERSUADE 2.0 (nbroad/persaude-corpus-2) has columns:
+        # essay_id_comp, competition_set, full_text, discourse_id, discourse_type, etc.
+        
+        # Map columns if needed
+        if 'full_text' in persuade_df.columns and 'text' not in persuade_df.columns:
+            persuade_df = persuade_df.rename(columns={'full_text': 'text'})
+        
+        # Fill missing columns with defaults
+        if 'student_disability_status' in persuade_df.columns:
+            persuade_df["student_disability_status"] = persuade_df["student_disability_status"].fillna("Unknown")
+        else:
+            persuade_df["student_disability_status"] = "Unknown"
+            
+        if 'ell_status' in persuade_df.columns:
+            persuade_df["ell_status"] = persuade_df["ell_status"].fillna("Unknown")
+        else:
+            persuade_df["ell_status"] = "Unknown"
+            
+        if 'grade_level' in persuade_df.columns:
+            persuade_df["grade_level"] = persuade_df["grade_level"].fillna(-1)
+        else:
+            persuade_df["grade_level"] = -1
+            
+        if 'holistic_essay_score' in persuade_df.columns:
+            persuade_df["holistic_essay_score"] = persuade_df["holistic_essay_score"].fillna(-1)
+        else:
+            persuade_df["holistic_essay_score"] = -1
+        
+        # Create instruction column
         persuade_df["instruction"] = persuade_df.apply(get_instruction, axis=1)
         return persuade_df
 

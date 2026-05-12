@@ -8,6 +8,19 @@
 | `datasets/train_essays.csv` | 4.4 MB | Основные данные для обучения detect |
 | `datasets/test_essays.csv` | 90 B | Тестовые данные |
 | `datasets/train_prompts.csv` | 27 KB | Промпты для генерации |
+| `datasets/final_dataset.csv` | ~11 MB | **Русские сочинения + AI-генерации** |
+
+### ✅ Финальный датасет (новый)
+| Файл | Размер | Назначение | Статус |
+|------|--------|------------|--------|
+| `datasets/final_dataset.csv` | ~11 MB | 1236 human + 1212 AI (3 модели) | ✅ Готов |
+| `datasets/final_prepared/final_train.csv` | ~8.7 MB | Train split (1958 сэмплов) | ✅ Готов |
+| `datasets/final_prepared/final_valid.csv` | ~2.2 MB | Valid split (490 сэмплов) | ✅ Готов |
+
+### ✅ Доступные датасеты
+| Файл | Размер | Назначение |
+|------|--------|------------|
+| `datasets/persuade_2.0_human_scores_demo_id_github.csv` | 767 MB | CLM обучение |
 
 ### ✅ Внешние датасеты (скачаны в /tmp с симлинками)
 | Датасет | Размер | Формат | Для чего | Статус |
@@ -15,6 +28,7 @@
 | `ai_mix_for_ranking` | 174 MB | CSV | Ranking, Embed | ✅ Скачан |
 | `ai_mix_v16` | 306 MB | CSV | Detect mix_v16 | ✅ Скачан |
 | `ai_mix_v26` | 195 MB | Parquet | Detect mix_v26, Embed | ✅ Скачан |
+| `persuade_2.0` | 767 MB | CSV | CLM | ✅ Скачан |
 
 ---
 
@@ -37,6 +51,42 @@
 - **Эпохи:** 2
 - **Сложность:** Базовая
 - **Статус:** ✅ Обучено
+
+---
+
+### 🔹 Этап 2.5: Detect Final Dataset (🆕 ГОТОВ К ЗАПУСКУ)
+**Конфиг:** `conf_r_detect_final.yaml`
+- **Модель:** Mistral-7B-v0.1 + LoRA (r=8, alpha=16)
+- **Датасет:** `datasets/final_dataset.csv` (русские сочинения)
+  - 1236 оригинальных сочинений (human)
+  - 1212 сгенерированных сочинений от 3 моделей:
+    - openai/gpt-4o-mini
+    - google/gemini-3.1-flash-lite
+    - qwen/qwen-2.5-72b-instruct
+- **Эпохи:** 3
+- **Max Length:** 512 токенов
+- **Batch Size:** 1 (gradient accumulation=16)
+- **Сложность:** Средняя (русскоязычные тексты)
+- **Статус:** ✅ Датасет подготовлен, скрипты готовы
+
+**Команда для запуска:**
+```bash
+# Подготовка датасета (уже выполнено)
+python3 code/evaluate/prepare_final_dataset.py
+
+# Запуск обучения
+/ml_core_binaries/qwarium-agent proc spawn -- /qwarium/home/d.a.lanovenko/llm-detect-ai/scripts/run_r_detect_final.sh
+
+# Оценка после обучения
+python3 code/evaluate/eval_r_detect_final.py
+```
+
+**Ожидаемые метрики:**
+- AUC-ROC: > 0.85
+- F1 Score: > 0.80
+- Время обучения: ~2-4 часа на H100
+
+**Документация:** См. `FINAL_DATASET_TRAINING.md`
 
 ---
 
@@ -116,11 +166,12 @@
 
 ---
 
-### 🔹 Этап 8: CLM Models (разные варианты)
+### 🔹 Этап 8: CLM Models (разные варианты) ✅ ДАТАСЕТ ГОТОВ
 **Конфиги:** `conf/r_clm/*.yaml`
 - **Модели:** GPT-2, OPT, Pythia, Llama variants, Mistral
+- **Датасет:** `datasets/persuade_2.0_human_scores_demo_id_github.csv` (767 MB) ✅
 - **Сложность:** Очень высокая (полное обучение или fine-tuning)
-- **Статус:** ⏳ Требуется выбор конфигурации
+- **Статус:** ✅ Датасет подготовлен
 
 **Доступные конфиги:**
 - `conf_r_clm_gpt2.yaml` - GPT-2 (базовая)
@@ -131,8 +182,11 @@
 
 **Команда для запуска:**
 ```bash
-# Lite вариант
+# Lite вариант (TinyLlama)
 /ml_core_binaries/qwarium-agent proc spawn -- /qwarium/home/d.a.lanovenko/llm-detect-ai/scripts/run_r_clm.sh conf_r_clm_tiny_llama
+
+# Mistral вариант
+/ml_core_binaries/qwarium-agent proc spawn -- /qwarium/home/d.a.lanovenko/llm-detect-ai/scripts/run_r_clm.sh conf_r_clm
 
 # Полное обучение с нуля
 /ml_core_binaries/qwarium-agent proc spawn -- /qwarium/home/d.a.lanovenko/llm-detect-ai/scripts/run_r_clm_from_scratch.sh conf_r_clm_tiny_llama

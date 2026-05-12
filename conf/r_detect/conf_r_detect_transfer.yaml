@@ -3,8 +3,8 @@ use_wandb: false
 input_data_dir: /qwarium/home/d.a.lanovenko/llm-detect-ai/datasets
 
 model:
-  backbone_path: ../models/r_detect_mix_v16/best  # Предобученная модель на ai-mix-v16
-  max_length: 1024
+  backbone_path: /qwarium/home/d.a.lanovenko/models/r_detect_conf_r_detect_mix_v16/best  # Предобученная модель на ai-mix-v16
+  max_length: 256  # уменьшено для экономии памяти
   num_labels: 1
   
   tokenizer:
@@ -24,16 +24,18 @@ model:
 
 train_params:
   per_device_train_batch_size: 1
-  per_device_eval_batch_size: 2
+  per_device_eval_batch_size: 1
   num_train_epochs: 2
-  gradient_accumulation_steps: 8
+  gradient_accumulation_steps: 16
   warmup_pct: 0.05
   eval_frequency: 150
   patience: 8
   save_trigger: 0.85
+  use_mask_aug: false
+  mask_aug_prob: 0.1
 
 optimizer:
-  name: AdamW8bit
+  name: AdamW
   head_lr: 5e-7
   lr: 5e-6
   weight_decay: 1e-2

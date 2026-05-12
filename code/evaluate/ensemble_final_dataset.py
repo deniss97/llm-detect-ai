@@ -43,12 +43,12 @@ DETECT_PREDICTIONS = {
 }
 
 RANKING_MODEL = {
-    'path': os.path.join(MODELS_DIR, 'r_ranking_conf_r_ranking_large'),
+    'path': os.path.join(MODELS_DIR, 'r_ranking_final_dataset'),
     'base': 'microsoft/deberta-v3-large',
 }
 
 EMBEDDING_MODEL = {
-    'path': os.path.join(MODELS_DIR, 'r_embed_conf_r_embed'),
+    'path': os.path.join(MODELS_DIR, 'r_embed_final_dataset'),
     'base': 'microsoft/deberta-v3-base',
     'checkpoint': 'detect_ai_model_last.pth.tar',
 }

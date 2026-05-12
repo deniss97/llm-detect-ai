@@ -5,13 +5,13 @@ external_data_dir: /qwarium/home/d.a.lanovenko/llm-detect-ai/datasets/external/a
 
 model:
   backbone_path: mistralai/Mistral-7B-v0.1
-  max_length: 1296
+  max_length: 256  # Reduced from 1296 to fit in GPU memory (no 4-bit quantization available)
   num_labels: 1
   
   tokenizer:
     padding_side: left
     truncation_side: left
-    use_fast: true
+    use_fast: false  # Changed to avoid tokenizer compatibility issues
 
   lora:
     target_modules:
@@ -38,7 +38,7 @@ train_params:
   mask_aug_prob: 0.0
 
 optimizer:
-  name: AdamW8bit
+  name: AdamW  # Changed from AdamW8bit (bitsandbytes not available)
   head_lr: 2e-6
   lr: 2e-5
   weight_decay: 1e-2

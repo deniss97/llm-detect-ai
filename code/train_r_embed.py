@@ -52,7 +52,10 @@ def run_evaluation(accelerator, model, valid_dl):
             loss = model(**batch)
 
         batch_losses = accelerator.gather_for_metrics(loss)
-        batch_losses = batch_losses.cpu().numpy().tolist()
+        if isinstance(batch_losses, torch.Tensor):
+            batch_losses = batch_losses.cpu().numpy().flatten().tolist()
+        else:
+            batch_losses = [batch_losses]
         all_losses.extend(batch_losses)
 
         progress_bar.update(1)
@@ -163,9 +166,6 @@ def run_training(cfg):
     train_df = train_df.reset_index(drop=True)
     valid_df = valid_df.reset_index(drop=True)
 
-    prompt_ids = train_df["prompt_id"].unique().tolist()
-    prompt_ids = [p for p in prompt_ids if p <= 8]
-
     pos_df = train_df[train_df["generated"] == 1].copy()
     neg_df = train_df[train_df["generated"] == 0].copy()
 
@@ -174,6 +174,10 @@ def run_training(cfg):
 
     neg_gdf = neg_df.groupby("prompt_id")["id"].apply(list).reset_index()
     prompt2ids_neg = dict(zip(neg_gdf["prompt_id"], neg_gdf["id"]))
+
+    prompt_ids = train_df["prompt_id"].unique().tolist()
+    # Filter to keep only prompt_ids that have both positive and negative examples
+    prompt_ids = [p for p in prompt_ids if p in prompt2ids_pos and p in prompt2ids_neg]
 
     accelerator.print(f"shape of train data: {train_df.shape}")
     accelerator.print(f"{train_df.head()}")
@@ -389,9 +393,8 @@ def run_training(cfg):
                 # saving -----
                 accelerator.wait_for_everyone()
                 unwrapped_model = accelerator.unwrap_model(model)
+                # Save only model state dict to reduce disk space
                 model_state = {
-                    'step': current_iteration,
-                    'epoch': epoch + 1,
                     'state_dict': unwrapped_model.state_dict(),
                     'lb': lb,
                 }

@@ -129,7 +129,9 @@ def save_checkpoint(cfg, state, is_best):
     torch.save(state, filename, _use_new_zipfile_serialization=False)
 
     if is_best:
-        shutil.copyfile(filename, f'{cfg.outputs.model_dir}/{name}_best.pth.tar')
+        # Save best model directly instead of copying to avoid disk space issues
+        best_filename = f'{cfg.outputs.model_dir}/{name}_best.pth.tar'
+        torch.save(state, best_filename, _use_new_zipfile_serialization=False)
 
 
 class EMA():

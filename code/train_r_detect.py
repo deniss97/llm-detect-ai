@@ -19,6 +19,7 @@ from peft import (LoraConfig, TaskType, get_peft_model)
 # bitsandbytes is not imported to avoid CUDA setup issues
 # We use standard PyTorch optimizers instead
 BITSANDBYTES_AVAILABLE = False
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from transformers import (AutoModelForSequenceClassification,
@@ -146,125 +147,251 @@ def run_training(cfg):
     # Check for external dataset (for mix_v16, mix_v26 configs)
     external_data_dir = cfg.get('external_data_dir', None)
 
-    try:
-        essay_df = pd.read_csv(os.path.join(data_dir, "train_essays.csv"))
-    except Exception as e:
-        essay_df = pd.read_parquet(os.path.join(data_dir, "train_essays.parquet"))
-
-    essay_df = essay_df[~essay_df['text'].isna()].copy()
-    essay_df = essay_df.reset_index(drop=True)
+    # First check for final_train.csv and final_valid.csv (for final_dataset)
+    final_train_path = os.path.join(data_dir, "final_train.csv")
+    final_valid_path = os.path.join(data_dir, "final_valid.csv")
     
-    # Load external dataset if specified (for mix models)
-    if external_data_dir is not None and os.path.exists(external_data_dir):
-        accelerator.print(f"Loading external dataset from: {external_data_dir}")
+    if os.path.exists(final_train_path) and os.path.exists(final_valid_path):
+        accelerator.print("Using final_train.csv and final_valid.csv for training")
         try:
-            external_df = pd.read_csv(os.path.join(external_data_dir, "train_essays.csv"))
+            train_df = pd.read_csv(final_train_path)
+            valid_df = pd.read_csv(final_valid_path)
+            
+            # Rename is_generated to generated for consistency
+            if 'is_generated' in train_df.columns:
+                train_df = train_df.rename(columns={'is_generated': 'generated'})
+            if 'is_generated' in valid_df.columns:
+                valid_df = valid_df.rename(columns={'is_generated': 'generated'})
+            
+            # Add id column if missing
+            if 'id' not in train_df.columns:
+                train_df['id'] = [f"final_train_{i}" for i in range(len(train_df))]
+            if 'id' not in valid_df.columns:
+                valid_df['id'] = [f"final_valid_{i}" for i in range(len(valid_df))]
+            
+            accelerator.print(f"Loaded final_train.csv: {train_df.shape}")
+            accelerator.print(f"Loaded final_valid.csv: {valid_df.shape}")
+                
         except Exception as e:
-            try:
-                external_df = pd.read_parquet(os.path.join(external_data_dir, "train_essays.parquet"))
-            except Exception as e2:
-                try:
-                    external_df = pd.read_csv(os.path.join(external_data_dir, "train.csv"))
-                except Exception as e3:
-                    external_df = pd.read_parquet(os.path.join(external_data_dir, "train.parquet"))
+            accelerator.print(f"Error loading final CSVs: {e}")
+            raise e
         
-        external_df = external_df[~external_df['text'].isna()].copy()
-        external_df = external_df.reset_index(drop=True)
-        accelerator.print(f"External dataset shape: {external_df.shape}")
+        train_df = train_df.reset_index(drop=True)
+        valid_df = valid_df.reset_index(drop=True)
         
-        # Combine datasets
-        essay_df = pd.concat([essay_df, external_df], ignore_index=True)
+        accelerator.print(f"shape of train data: {train_df.shape}")
+        accelerator.print(f"{train_df.head()}")
+        accelerator.print(f"shape of validation data: {valid_df.shape}")
+        accelerator.print(f"Train class distribution: {train_df['generated'].value_counts().to_dict()}")
+        accelerator.print(f"Valid class distribution: {valid_df['generated'].value_counts().to_dict()}")
+        
+        with accelerator.main_process_first():
+            dataset_creator = AiDataset(cfg)
+            train_ds = dataset_creator.get_dataset(train_df)
+            valid_ds = dataset_creator.get_dataset(valid_df)
+        
+        tokenizer = dataset_creator.tokenizer
+        
+        train_ds.set_format(
+            type=None,
+            columns=['id', 'input_ids', 'attention_mask', 'generated']
+        )
+        
+        valid_ds = valid_ds.sort("input_length")
+        valid_ds.set_format(
+            type=None,
+            columns=['id', 'input_ids', 'attention_mask', 'generated']
+        )
+        valid_ids = valid_df["id"]
+        
+        data_collator = AiCollator(tokenizer=tokenizer, pad_to_multiple_of=64)
+        data_collator_train = AiCollatorTrain(tokenizer=tokenizer, pad_to_multiple_of=64, kwargs=dict(cfg=cfg))
+        
+        train_dl = DataLoader(train_ds, batch_size=cfg.train_params.per_device_train_batch_size, shuffle=True, collate_fn=data_collator_train)
+        valid_dl = DataLoader(valid_ds, batch_size=cfg.train_params.per_device_eval_batch_size, shuffle=False, collate_fn=data_collator)
+        
+        accelerator.print("data preparation done...")
+        print_line()
+        
+        # Continue to model creation...
+        goto_model_creation = True
+    else:
+        goto_model_creation = False
+        # Try to load train_essays.csv as fallback
+        try:
+            essay_df = pd.read_csv(os.path.join(data_dir, "train_essays.csv"))
+        except Exception as e:
+            essay_df = pd.read_parquet(os.path.join(data_dir, "train_essays.parquet"))
+
+        essay_df = essay_df[~essay_df['text'].isna()].copy()
         essay_df = essay_df.reset_index(drop=True)
-        accelerator.print(f"Combined dataset shape: {essay_df.shape}")
+        
+        # Load external dataset if specified (for mix models)
+        if external_data_dir is not None and os.path.exists(external_data_dir):
+            accelerator.print(f"Loading external dataset from: {external_data_dir}")
+            try:
+                external_df = pd.read_csv(os.path.join(external_data_dir, "train_essays.csv"))
+            except Exception as e:
+                try:
+                    external_df = pd.read_parquet(os.path.join(external_data_dir, "train_essays.parquet"))
+                except Exception as e2:
+                    try:
+                        external_df = pd.read_csv(os.path.join(external_data_dir, "train.csv"))
+                    except Exception as e3:
+                        external_df = pd.read_parquet(os.path.join(external_data_dir, "train.parquet"))
+            
+            external_df = external_df[~external_df['text'].isna()].copy()
+            external_df = external_df.reset_index(drop=True)
+            accelerator.print(f"External dataset shape: {external_df.shape}")
+            
+            # Combine datasets
+            essay_df = pd.concat([essay_df, external_df], ignore_index=True)
+            essay_df = essay_df.reset_index(drop=True)
+            accelerator.print(f"Combined dataset shape: {essay_df.shape}")
 
-    # train_df = pd.read_parquet(os.path.join(data_dir, "train_essays.parquet"))
-    # train_df = train_df[~train_df['text'].isna()].copy()
+        # Use detection_train.csv and detection_val.csv if available
+        train_csv_path = os.path.join(data_dir, "detection_train.csv")
+        val_csv_path = os.path.join(data_dir, "detection_val.csv")
+        
+        if os.path.exists(train_csv_path) and os.path.exists(val_csv_path):
+            accelerator.print("Using detection_train.csv and detection_val.csv for training")
+            try:
+                train_df = pd.read_csv(train_csv_path)
+                valid_df = pd.read_csv(val_csv_path)
+                
+                # Rename is_generated to generated for consistency
+                if 'is_generated' in train_df.columns:
+                    train_df = train_df.rename(columns={'is_generated': 'generated'})
+                if 'is_generated' in valid_df.columns:
+                    valid_df = valid_df.rename(columns={'is_generated': 'generated'})
+                
+                # Add id column if missing
+                if 'id' not in train_df.columns:
+                    train_df['id'] = [f"train_{i}" for i in range(len(train_df))]
+                if 'id' not in valid_df.columns:
+                    valid_df['id'] = [f"val_{i}" for i in range(len(valid_df))]
+                    
+            except Exception as e:
+                accelerator.print(f"Error loading detection CSVs: {e}")
+                accelerator.print("Falling back to train_essays.csv with custom split")
+                # Fallback to custom split
+                n_pos = essay_df['generated'].sum()
+                n_neg = len(essay_df) - n_pos
+                n_pos_valid = min(2, n_pos) if n_pos >= 2 else n_pos
+                n_neg_valid = max(int(n_neg * 0.05), 50)
+                
+                pos_df = essay_df[essay_df['generated'] == 1]
+                neg_df = essay_df[essay_df['generated'] == 0]
+                
+                pos_train, pos_valid = train_test_split(
+                    pos_df, test_size=n_pos_valid, random_state=cfg.seed
+                )
+                neg_train, neg_valid = train_test_split(
+                    neg_df, test_size=n_neg_valid, random_state=cfg.seed
+                )
+                
+                train_df = pd.concat([pos_train, neg_train], ignore_index=True).sample(frac=1, random_state=cfg.seed).reset_index(drop=True)
+                valid_df = pd.concat([pos_valid, neg_valid], ignore_index=True).sample(frac=1, random_state=cfg.seed).reset_index(drop=True)
+        else:
+            # Fallback to custom split from train_essays.csv
+            accelerator.print("Using train_essays.csv with custom split")
+            n_pos = essay_df['generated'].sum()
+            n_neg = len(essay_df) - n_pos
+            n_pos_valid = min(2, n_pos) if n_pos >= 2 else n_pos
+            n_neg_valid = max(int(n_neg * 0.05), 50)
+            
+            pos_df = essay_df[essay_df['generated'] == 1]
+            neg_df = essay_df[essay_df['generated'] == 0]
+            
+            pos_train, pos_valid = train_test_split(
+                pos_df, test_size=n_pos_valid, random_state=cfg.seed
+            )
+            neg_train, neg_valid = train_test_split(
+                neg_df, test_size=n_neg_valid, random_state=cfg.seed
+            )
+            
+            train_df = pd.concat([pos_train, neg_train], ignore_index=True).sample(frac=1, random_state=cfg.seed).reset_index(drop=True)
+            valid_df = pd.concat([pos_valid, neg_valid], ignore_index=True).sample(frac=1, random_state=cfg.seed).reset_index(drop=True)
 
-    # valid_df = pd.read_parquet(os.path.join(data_dir, "valid_essays.parquet"))
-    # valid_df = valid_df[~valid_df['text'].isna()].copy()
+        train_df = train_df.reset_index(drop=True)
+        valid_df = valid_df.reset_index(drop=True)
 
-    rng = random.Random(cfg.seed)
-    essay_df['fold'] = essay_df['text'].apply(lambda x: 'train' if rng.random() < 0.99 else 'valid')
-    train_df = essay_df[essay_df['fold'] == 'train'].copy()
-    valid_df = essay_df[essay_df['fold'] == 'valid'].copy()
+        accelerator.print(f"shape of train data: {train_df.shape}")
+        accelerator.print(f"{train_df.head()}")
+        accelerator.print(f"shape of validation data: {valid_df.shape}")
+        accelerator.print(f"Train class distribution: {train_df['generated'].value_counts().to_dict()}")
+        accelerator.print(f"Valid class distribution: {valid_df['generated'].value_counts().to_dict()}")
 
-    train_df = train_df.reset_index(drop=True)
-    valid_df = valid_df.reset_index(drop=True)
+        with accelerator.main_process_first():
+            dataset_creator = AiDataset(cfg)
 
-    accelerator.print(f"shape of train data: {train_df.shape}")
-    accelerator.print(f"{train_df.head()}")
-    accelerator.print(f"shape of validation data: {valid_df.shape}")
+            train_ds = dataset_creator.get_dataset(train_df)
+            valid_ds = dataset_creator.get_dataset(valid_df)
 
-    with accelerator.main_process_first():
-        dataset_creator = AiDataset(cfg)
+        tokenizer = dataset_creator.tokenizer
 
-        train_ds = dataset_creator.get_dataset(train_df)
-        valid_ds = dataset_creator.get_dataset(valid_df)
+        train_ds.set_format(
+            type=None,
+            columns=[
+                'id',
+                'input_ids',
+                'attention_mask',
+                'generated'
+            ]
+        )
 
-    tokenizer = dataset_creator.tokenizer
+        valid_ds = valid_ds.sort("input_length")
 
-    train_ds.set_format(
-        type=None,
-        columns=[
-            'id',
-            'input_ids',
-            'attention_mask',
-            'generated'
-        ]
-    )
+        valid_ds.set_format(
+            type=None,
+            columns=[
+                'id',
+                'input_ids',
+                'attention_mask',
+                'generated'
+            ]
+        )
+        valid_ids = valid_df["id"]  # .tolist()
 
-    valid_ds = valid_ds.sort("input_length")
+        data_collator = AiCollator(
+            tokenizer=tokenizer,
+            pad_to_multiple_of=64
+        )
+        data_collator_train = AiCollatorTrain(
+            tokenizer=tokenizer,
+            pad_to_multiple_of=64,
+            kwargs=dict(cfg=cfg)
+        )
 
-    valid_ds.set_format(
-        type=None,
-        columns=[
-            'id',
-            'input_ids',
-            'attention_mask',
-            'generated'
-        ]
-    )
-    valid_ids = valid_df["id"]  # .tolist()
+        train_dl = DataLoader(
+            train_ds,
+            batch_size=cfg.train_params.per_device_train_batch_size,
+            shuffle=True,
+            collate_fn=data_collator_train,
+        )
 
-    data_collator = AiCollator(
-        tokenizer=tokenizer,
-        pad_to_multiple_of=64
-    )
-    data_collator_train = AiCollatorTrain(
-        tokenizer=tokenizer,
-        pad_to_multiple_of=64,
-        kwargs=dict(cfg=cfg)
-    )
+        valid_dl = DataLoader(
+            valid_ds,
+            batch_size=cfg.train_params.per_device_eval_batch_size,
+            shuffle=False,
+            collate_fn=data_collator,
+        )
 
-    train_dl = DataLoader(
-        train_ds,
-        batch_size=cfg.train_params.per_device_train_batch_size,
-        shuffle=True,
-        collate_fn=data_collator_train,
-    )
+        accelerator.print("data preparation done...")
+        print_line()
 
-    valid_dl = DataLoader(
-        valid_ds,
-        batch_size=cfg.train_params.per_device_eval_batch_size,
-        shuffle=False,
-        collate_fn=data_collator,
-    )
+        # --- show batch -------------------------------------------------------------------#
+        print_line()
 
-    accelerator.print("data preparation done...")
-    print_line()
+        for b in train_dl:
+            break
+        show_batch(b, tokenizer, task='training', print_fn=accelerator.print)
 
-    # --- show batch -------------------------------------------------------------------#
-    print_line()
+        print_line()
 
-    for b in train_dl:
-        break
-    show_batch(b, tokenizer, task='training', print_fn=accelerator.print)
-
-    print_line()
-
-    for b in valid_dl:
-        break
-    show_batch(b, tokenizer, task='training', print_fn=accelerator.print)
+        for b in valid_dl:
+            break
+        show_batch(b, tokenizer, task='training', print_fn=accelerator.print)
 
     # --- model -------------------------------------------------------------------------#
     print_line()

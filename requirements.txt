@@ -9,3 +9,8 @@ hydra-core
 pynvml
 sentencepiece
 einops
+
+# For translation and generation
+deep-translator>=1.11.4
+pandas>=1.5.0
+tqdm>=4.64.0

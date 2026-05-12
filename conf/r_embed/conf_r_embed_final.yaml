@@ -1,0 +1,47 @@
+seed: 42
+use_wandb: false
+input_data_dir: /qwarium/home/d.a.lanovenko/llm-detect-ai/datasets/final_for_embed_ranking_v2
+external_data_dir: null
+
+model:
+  backbone_path: microsoft/deberta-v3-base
+  max_length: 768
+  dropout_rate: 0.01
+  gradient_checkpointing: true
+  projection_dim: 512
+  temperature: 0.1
+
+train_params:
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 32
+  num_train_epochs: 3
+  gradient_accumulation_steps: 2
+
+  warmup_pct: 0.02
+  eval_frequency: 200
+  patience: 10
+  save_trigger: 0.0
+
+optimizer:
+  head_lr: 4e-5
+  lr: 4e-5
+  weight_decay: 1e-3
+  max_grad_norm: 1.0
+
+  eps: 1e-8
+  beta1: 0.9
+  beta2: 0.999
+
+  use_bnb: true
+  use_llrd: true
+  llrd: 0.9
+
+outputs:
+  model_dir: /qwarium/home/d.a.lanovenko/models/r_embed_final_dataset
+
+wandb:
+  project: detect-ai-a1
+  run_name: exp-r-embed-final-dataset
+  tags:
+    - deberta
+    - final_dataset

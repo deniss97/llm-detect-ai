@@ -14,8 +14,8 @@ export HF_DATASETS_CACHE=/tmp/hf_datasets_cache
 # Default config
 CONFIG_NAME=${1:-conf_r_ranking_large}
 
-# Create model output directory (persistent storage)
-MODEL_DIR="/qwarium/home/d.a.lanovenko/models/r_ranking_${CONFIG_NAME}"
+# Create model output directory (using /tmp to avoid home disk space limits)
+MODEL_DIR="/tmp/models/r_ranking_${CONFIG_NAME}"
 mkdir -p "$MODEL_DIR"
 
 # Run training

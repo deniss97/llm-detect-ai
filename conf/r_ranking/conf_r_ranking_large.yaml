@@ -35,7 +35,7 @@ optimizer:
   llrd: 0.9
 
 outputs:
-  model_dir: /qwarium/home/d.a.lanovenko/models/r_ranking
+  model_dir: /tmp/models/r_ranking_conf_r_ranking_large
 
 wandb:
   project: detect-ai-a1
