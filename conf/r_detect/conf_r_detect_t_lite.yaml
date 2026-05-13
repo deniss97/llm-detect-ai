@@ -1,0 +1,84 @@
+# Конфигурация для обучения Detection модели на базе T-lite-it-1.0
+# Модель: t-tech/T-lite-it-1.0 (SOTA на русском языке, 7B параметров)
+
+# === Модель ===
+model_name: t-tech/T-lite-it-1.0
+model_revision: main
+num_labels: 1  # Binary classification with BCE loss
+
+# === Токенизатор ===
+tokenizer_name: t-tech/T-lite-it-1.0
+max_length: 1024  # Уменьшено для экономии памяти
+
+# === LoRA / DoRA конфигурация ===
+use_lora: true
+lora_config:
+  r: 32                    # Больше capacity для cross-lingual
+  lora_alpha: 64           # alpha = 2*r
+  lora_dropout: 0.05
+  bias: none
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  use_rslora: true         # Rank-Stabilized LoRA
+  use_dora: true           # DoRA вместо обычной LoRA
+  modules_to_save:
+    - score                # Обучаем classification head полностью
+
+# === Training Arguments для H100-80GB ===
+training_args:
+  num_train_epochs: 3
+  per_device_train_batch_size: 1  # Минимальный для избежания OOM
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 16  # Эффективный batch = 16
+  
+  # Оптимизация
+  learning_rate: 1.0e-4
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  
+  # Точность
+  bf16: true               # H100 любит BF16
+  tf32: true               # Ускорение matmul
+  
+  # Память
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+  
+  # Оптимизатор
+  optim: adamw_torch_fused
+  
+  # Attention (без flash_attn для совместимости)
+  attn_implementation: eager
+  
+  # Логирование
+  logging_steps: 20
+  eval_strategy: steps
+  eval_steps: 100
+  save_strategy: steps
+  save_steps: 100
+  save_total_limit: 3
+  load_best_model_at_end: true
+  metric_for_best_model: roc_auc
+  greater_is_better: true
+  patience: 3
+  
+  report_to: none
+  seed: 42
+
+# === Датасеты ===
+train_dataset: datasets/final_prepared/final_train.csv
+valid_dataset: datasets/final_prepared/final_valid.csv
+text_column: text
+label_column: label
+
+# === Вывод ===
+output_dir: models/r_detect_t_lite
+overwrite_output_dir: true

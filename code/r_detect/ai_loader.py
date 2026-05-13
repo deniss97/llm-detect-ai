@@ -131,9 +131,23 @@ class AiCollatorTrain(DataCollatorWithPadding):
         # for key, value in buffer_dict.items():
         #     batch[key] = value
 
-        if self.cfg.train_params.use_mask_aug:
+        # Поддержка старого и нового формата конфига
+        use_mask_aug = False
+        mask_aug_prob = 0.1
+        
+        if hasattr(self, 'cfg'):
+            if hasattr(self.cfg, 'train_params'):
+                # Старый формат
+                use_mask_aug = self.cfg.train_params.get('use_mask_aug', False)
+                mask_aug_prob = self.cfg.train_params.get('mask_aug_prob', 0.1)
+            else:
+                # Новый формат (V2)
+                use_mask_aug = self.cfg.get('use_mask_aug', False)
+                mask_aug_prob = self.cfg.get('mask_aug_prob', 0.1)
+        
+        if use_mask_aug:
             batch["input_ids"] = apply_mask_augmentation(
-                batch["input_ids"], self.tokenizer, self.cfg.train_params.mask_aug_prob
+                batch["input_ids"], self.tokenizer, mask_aug_prob
             )
 
         if labels is not None:
