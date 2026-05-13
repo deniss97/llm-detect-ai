@@ -1,5 +1,73 @@
 # План Обучения Моделей (Progressive Complexity)
 
+## 🚀 АРХИТЕКТУРА V2.0 - СОВРЕМЕННЫЕ МОДЕЛИ (2024-2025)
+
+**Документация:** См. `ARCHITECTURE_V2.md`
+
+### 🔹 Этап 2.5.1: T-lite-7B Detection (🆕 НОВЫЙ ПЛАН)
+**Конфиг:** `conf/r_detect/conf_r_detect_t_lite.yaml`
+- **Модель:** `t-tech/T-lite-it-1.0` (7B, SOTA на русском)
+- **Датасет:** `datasets/final_dataset.csv`
+- **Метод:** DoRA + RSLoRA (r=32, alpha=64)
+- **Max Length:** 2048 токенов
+- **Эпохи:** 3
+- **Ожидаемый AUC:** 0.93-0.96
+- **Статус:** ⏳ Требуется загрузка модели
+
+### 🔹 Этап 2.5.2: Qwen3-8B Detection (🆕 НОВЫЙ ПЛАН)
+**Конфиг:** `conf/r_detect/conf_r_detect_qwen3.yaml`
+- **Модель:** `Qwen/Qwen3-8B` (8B, мультиязычный)
+- **Датасет:** `datasets/final_dataset.csv`
+- **Метод:** DoRA + RSLoRA (r=32, alpha=64)
+- **Max Length:** 2048 токенов
+- **Эпохи:** 3
+- **Ожидаемый AUC:** 0.93-0.96
+- **Статус:** ⏳ Требуется загрузка модели
+
+### 🔹 Этап 2.5.3: Vikhr-Nemo-12B Detection (🆕 НОВЫЙ ПЛАН)
+**Конфиг:** `conf/r_detect/conf_r_detect_vikhr.yaml`
+- **Модель:** `Vikhrmodels/Vikhr-Nemo-12B-Instruct-R-21-09-24` (12B)
+- **Датасет:** `datasets/final_dataset.csv`
+- **Метод:** QLoRA (4-bit) + DoRA
+- **Max Length:** 2048 токенов
+- **Эпохи:** 3
+- **Ожидаемый AUC:** 0.94-0.97
+- **Статус:** ⏳ Требуется загрузка модели
+
+### 🔹 Этап 2.5.4: USER-bge-m3 Embedding (🆕 НОВЫЙ ПЛАН)
+**Конфиг:** `conf/r_embed/conf_r_embed_bge_m3.yaml`
+- **Модель:** `deepvk/USER-bge-m3` (0.5B, SOTA для русского)
+- **Датасет:** `datasets/final_dataset.csv` (contrastive learning)
+- **Метод:** Matryoshka + MultipleNegativesRankingLoss
+- **Max Length:** 8192 токена
+- **Эпохи:** 3
+- **Ожидаемый AUC:** 0.992-0.995
+- **Статус:** ⏳ Требуется загрузка модели
+
+### 🔹 Этап 2.5.5: BGE-Reranker-v2-m3 Ranking (🆕 НОВЫЙ ПЛАН)
+**Конфиг:** `conf/r_ranking/conf_r_ranking_bge_v2.yaml`
+- **Модель:** `BAAI/bge-reranker-v2-m3` (0.5B, мультиязычный SOTA)
+- **Датасет:** `datasets/final_dataset.csv` (pair-wise)
+- **Метод:** BinaryCrossEntropyLoss
+- **Max Length:** 8192 токена
+- **Эпохи:** 3
+- **Ожидаемый AUC:** 0.985-0.99
+- **Статус:** ⏳ Требуется загрузка модели
+
+### 🔹 Этап 2.5.6: Zero-shot компоненты (🆕 НОВЫЙ ПЛАН)
+- **Binoculars:** `Qwen/Qwen2.5-7B` + `Qwen/Qwen2.5-7B-Instruct`
+- **Fast-DetectGPT:** `Qwen/Qwen2.5-7B`
+- **Лингвистические фичи:** pymorphy3 + CatBoost на GPU
+- **Статус:** ⏳ Требуется загрузка Qwen2.5-7B
+
+### 🔹 Этап 2.5.7: Stacking Meta-model (🆕 НОВЫЙ ПЛАН)
+- **Модель:** CatBoostClassifier (GPU)
+- **Фичи:** 15+ метрик от всех компонентов
+- **Ожидаемый AUC:** 0.995-0.998
+- **Статус:** ⏳ Зависит от предыдущих этапов
+
+---
+
 ## Статус Датасетов
 
 ### ✅ Доступные датасеты
