@@ -26,8 +26,9 @@ warnings.filterwarnings('ignore')
 
 # === Пути ===
 MODEL_NAME = "t-tech/T-lite-it-1.0"
-TRAIN_PATH = "/tmp/final_prepared/final_train.csv"
-VALID_PATH = "/tmp/final_prepared/final_valid.csv"
+# CORRECT SPLIT: human+AI pairs kept together by source_id
+TRAIN_PATH = "/qwarium/home/d.a.lanovenko/llm-detect-ai/datasets/final_prepared/final_train.csv"
+VALID_PATH = "/qwarium/home/d.a.lanovenko/llm-detect-ai/datasets/final_prepared/final_valid.csv"
 OUTPUT_DIR = os.environ.get("MODEL_OUTPUT_DIR", "/tmp/llm_cache/models/r_detect_t_lite_v2")
 LOG_DIR = "/qwarium/home/d.a.lanovenko/llm-detect-ai/logs"
 
@@ -58,15 +59,18 @@ valid_df = pd.read_csv(VALID_PATH)
 print(f"Train: {len(train_df)} сэмплов")
 print(f"Valid: {len(valid_df)} сэмплов")
 
-# Проверка на data leak
-train_sources = set(train_df['source_id_check'].values)
-valid_sources = set(valid_df['source_id_check'].values)
-overlap = train_sources & valid_sources
-if overlap:
-    print(f"⚠️ DATA LEAK: {len(overlap)} source_id пересекаются между train и valid!")
-    sys.exit(1)
+# Проверка на data leak (колонка source_id в новом сплите)
+if 'source_id' in train_df.columns:
+    train_sources = set(train_df['source_id'].values)
+    valid_sources = set(valid_df['source_id'].values)
+    overlap = train_sources & valid_sources
+    if overlap:
+        print(f"⚠️ DATA LEAK: {len(overlap)} source_id пересекаются между train и valid!")
+        sys.exit(1)
+    else:
+        print("✅ Data leak проверен: train и valid не пересекаются по source_id")
 else:
-    print("✅ Data leak проверен: train и valid не пересекаются по source_id")
+    print("⚠️ Колонка source_id не найдена, пропускаем проверку data leak")
 
 # === Конвертация в Hugging Face Dataset ===
 train_dataset = Dataset.from_pandas(train_df[['text', 'generated']].rename(columns={'generated': 'label'}))

@@ -74,10 +74,11 @@ training_args:
   seed: 42
 
 # === Датасеты ===
+# CORRECT SPLIT: human+AI pairs kept together by source_id
 train_dataset: datasets/final_prepared/final_train.csv
 valid_dataset: datasets/final_prepared/final_valid.csv
 text_column: text
-label_column: label
+label_column: generated
 
 # === Вывод ===
 output_dir: models/r_detect_t_lite
