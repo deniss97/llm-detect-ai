@@ -1,0 +1,9 @@
+Embedding Model Evaluation Results (USER-bge-m3)
+============================================================
+Dataset: valid_triplets.csv (243 triplets)
+Model: deepvk/USER-bge-m3 + fine-tuned weights from /tmp/llm_cache/models/r_embed_final
+============================================================
+
+Accuracy: 1.0000 (100.00%)
+Correct: 243 / 243
+MRR: 1.0000
