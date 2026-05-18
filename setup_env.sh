@@ -1,71 +1,32 @@
 #!/bin/bash
-# Setup script for translation and generation pipeline
-# This script installs required dependencies
+# Установка окружения для проекта LLM Detect AI
+# Версия Python: 3.10+
 
 set -e
 
-echo "=============================================="
-echo "Setting up environment for translation/generation"
-echo "=============================================="
+echo "🚀 Установка окружения для LLM Detect AI..."
 
-# Check if requirements.txt exists
-if [ ! -f "requirements.txt" ]; then
-    echo "ERROR: requirements.txt not found!"
-    exit 1
+# Создание виртуального окружения (если не существует)
+if [ ! -d "venv" ]; then
+    echo "📦 Создание виртуального окружения..."
+    python3.10 -m venv venv
 fi
 
-# Install from requirements.txt
-echo "Installing dependencies from requirements.txt..."
-pip3 install -r requirements.txt --quiet
+# Активация виртуального окружения
+echo "🔌 Активация виртуального окружения..."
+source venv/bin/activate
 
-# Verify installation
+# Обновление pip
+echo "📦 Обновление pip..."
+pip install --upgrade pip
+
+# Установка зависимостей
+echo "📦 Установка зависимостей из requirements.txt..."
+pip install -r requirements.txt
+
+echo "✅ Окружение успешно установлено!"
 echo ""
-echo "Verifying installation..."
-
-python3 -c "
-import sys
-try:
-    from deep_translator import GoogleTranslator
-    print('✓ deep_translator installed')
-except ImportError:
-    print('✗ deep_translator NOT installed')
-    sys.exit(1)
-
-try:
-    import pandas
-    print('✓ pandas installed')
-except ImportError:
-    print('✗ pandas NOT installed')
-    sys.exit(1)
-
-try:
-    from transformers import AutoModelForCausalLM
-    print('✓ transformers installed')
-except ImportError:
-    print('✗ transformers NOT installed')
-    sys.exit(1)
-
-print('')
-print('All dependencies installed successfully!')
-"
-
+echo "Для активации окружения выполните:"
+echo "  source venv/bin/activate"
 echo ""
-echo "=============================================="
-echo "Setup complete!"
-echo "=============================================="
-echo ""
-echo "Usage:"
-echo "  # Quick test (3 essays, 1 variation each)"
-echo "  python3 ./code/r_clm/translate_and_generate.py \\"
-echo "      --input datasets/Датасет.csv \\"
-echo "      --model_path /tmp/models/r_clm_v2/last \\"
-echo "      --max_essays 3 \\"
-echo "      --num_variations 1"
-echo ""
-echo "  # Full generation (all essays, 5 variations each)"
-echo "  python3 ./code/r_clm/translate_and_generate.py \\"
-echo "      --input datasets/Датасет.csv \\"
-echo "      --model_path /tmp/models/r_clm_v2/last \\"
-echo "      --max_essays -1 \\"
-echo "      --num_variations 5"
-echo ""
+echo "Для запуска обучения моделей см. README.md"
