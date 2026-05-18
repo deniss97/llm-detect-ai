@@ -2,8 +2,6 @@
 
 **Проект:** Исследование и разработка методов обнаружения текстов, сгенерированных большими языковыми моделями (LLM)
 
-**Контакт:** d.a.lanovenko  
-**Дата обновления:** 2026-05-15  
 **Статус:** ✅ 3 модели обучены, ансамбль готов к использованию
 
 ---
@@ -424,10 +422,3 @@ ENSEMBLE=/qwarium/home/d.a.lanovenko/llm-detect-ai/results/meta_learner_3models.
 - **Репозиторий:** `/qwarium/home/d.a.lanovenko/llm-detect-ai/`
 - **Полный отчёт:** [results/DETECTION_METRICS_REPORT.md](results/DETECTION_METRICS_REPORT.md)
 - **Model Zoo:** [MODEL_ZOO.md](MODEL_ZOO.md)
-
----
-
-**Лицензия:** MIT  
-**Дата создания:** 2025-01-15  
-**Дата обновления:** 2026-05-15  
-**Автор:** AI Assistant
